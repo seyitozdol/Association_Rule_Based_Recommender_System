@@ -19,7 +19,7 @@
 # -----------------------------------------------------------------------------
 
 # UserId        : Customer number
-# ServiceId     : Anonymized services related to each category (Example: Under the cleaning category, there's a service for couch cleaning). A ServiceId can appear under different categories and may represent different services in each category. (Example: A service with CategoryId 7 and ServiceId 4 is for radiator cleaning, while a service with CategoryId 2 and ServiceId 4 is for furniture assembly).
+# ServiceId     : Anonymized services related to each category
 # CategoryId    : Anonymized categories (Example: Cleaning, transportation, renovation).
 # CreateDate    : Date the service was purchased.
 
@@ -33,41 +33,22 @@ import pandas as pd
 pd.set_option('display.max_columns', None)
 from mlxtend.frequent_patterns import apriori, association_rules
 
-# -----------------------------------------------------------------------------
-# Task 1: Data Prepration                                                     -
-# -----------------------------------------------------------------------------
 
-# -----------------------------------------------------------------------------
-# Step 1: Load the armut_data.csv file.
-# -----------------------------------------------------------------------------
+# Task 1: Data Prepration
+## Step 1: Load the armut_data.csv file.
 
-# -----------------------------------------------------------------------------
-# Step 2: Each ServiceId represents a distinct service for every CategoryID.
-# Create a new variable by combining ServiceID and CategoryID with "_",
-# which will represent these services.
-# Expected output for this step:
-# -----------------------------------------------------------------------------
+df_ = pd.read_csv(r"Association_Rule_Based_Recommender_System\armut_data.csv")
+df = df_.copy()
+df.head()
 
-# (Here you can write the code to handle this step)
+df['Hizmet'] = df['ServiceId'].astype(str)+"_"+df['CategoryId'].astype(str)
 
-# -----------------------------------------------------------------------------
-# Step 3: The dataset is comprised of the date and time the services were received.
-# There's no specific cart definition (like an invoice). For implementing
-# Association Rule Learning, we need to define a 'cart'. Here, the cart is
-# defined as the services availed by each customer monthly.
-# Example: The customer with ID 7256 has services 9_4 and 46_4 in the 8th
-# month of 2017 representing one cart; whereas services 9_4 and 38_4 in the
-# 10th month of 2017 represent another cart. These carts need unique identifiers.
-# Start by creating a new date variable only containing year and month.
-# Then concatenate UserID with the new date variable using "_" to derive
-# a new variable named 'ID'.
-# Expected output:
-# -----------------------------------------------------------------------------
 
-# (Here you can write the code to handle this step)
+## Step 2: Each ServiceId represents a distinct service for every CategoryID.
+# Create a new variable by combining ServiceID and CategoryID with "_" which will represent these services.
 
-# -----------------------------------------------------------------------------
-# Task 1: Data Preparation
+
+#  output for this step:
 # -----------------------------------------------------------------------------
 # Sample Data:
 # UserId | ServiceId | CategoryId | CreateDate       | Hizmet
@@ -78,49 +59,57 @@ from mlxtend.frequent_patterns import apriori, association_rules
 # 25446  | 48        | 5          | 6.08.2017 16:16  | 48_5
 # -----------------------------------------------------------------------------
 
-# (Here you can write the code to handle data preparation)
 
+# -----------------------------------------------------------------------------
+# Step 3: The dataset is comprised of the date and time the services were received.
+# There's no specific cart definition (like an invoice). For implementing
+# Association Rule Learning, we need to define a 'cart'. Here, the cart is
+# defined as the services availed by each customer monthly.
 
+df.dtypes
 
+df['CreateDate'] = pd.to_datetime(df['CreateDate'])
 
+df["New_Date"] = df["CreateDate"].dt.strftime("%Y-%m")
 
+df['SepetID'] = df['UserId'].astype(str)+"_"+df['New_Date']
 
-
-# Adım 1: armut_data.csv dosyasınız okutunuz.
-df_ = pd.read_csv(r"Association_Rule_Based_Recommender_System\armut_data.csv")
-df = df_.copy()
-df.head()
-
-def analyze_missing_values(df):
-    na_cols = df.columns[df.isna().any()].tolist()
-    total_missing = df[na_cols].isna().sum().sort_values(ascending=False)
-    percentage_missing = ((df[na_cols].isna().sum() / df.shape[0]) * 100).sort_values(ascending=False)
-    missing_data = pd.DataFrame({'Missing Count': total_missing, 'Percentage (%)': np.round(percentage_missing, 2)})
-    return missing_data
-
-# to get an initial understanding of the data's structure, its content, and if there are any missing values that need to be addressed.
-def sum_df(dataframe, head=6):
-    print("~~~~~~~~~~|-HEAD-|~~~~~~~~~~ ")
-    print(dataframe.head(head))
-    print("~~~~~~~~~~|-TAIL-|~~~~~~~~~~ ")
-    print(dataframe.tail(head))
-    print("~~~~~~~~~~|-TYPES-|~~~~~~~~~~ ")
-    print(dataframe.dtypes)
-    print("~~~~~~~~~~|-SHAPE-|~~~~~~~~~~ ")
-    print(dataframe.shape)
-    print("~~~~~~~~~~|-NUMBER OF UNIQUE-|~~~~~~~~~~ ")
-    print(dataframe.nunique())
-    print("~~~~~~~~~~|-NA-|~~~~~~~~~~ ")
-    print(dataframe.isnull().sum())
-    print("~~~~~~~~~~|-QUANTILES-|~~~~~~~~~~ ")
-    print(dataframe.describe([0, 0.05, 0.50, 0.95, 0.99, 1]).T)
-    print("~~~~~~~~~~|-NUMERIC COLUMNS-|~~~~~~~~~~ ")
-    print([i for i in dataframe.columns if dataframe[i].dtype != "O"])
-    print("~~~~~~~~~~|-MISSING VALUE ANALYSIS-|~~~~~~~~~~ ")
-    print(analyze_missing_values(dataframe))
-
-sum_df(df)
 
 # ###############################################################################################################
 # Task 2: Generate Association Rules and Provide Recommendations
 # ###############################################################################################################
+
+invoice_product_df = df.groupby(['SepetID', 'Hizmet'])['Hizmet'].count().unstack().fillna(0).applymap(lambda x: 1 if x > 0 else 0)
+invoice_product_df.head()
+
+frequent_itemsets = apriori(invoice_product_df, min_support=0.01, use_colnames=True)
+rules = association_rules(frequent_itemsets, metric="support", min_threshold=0.01)
+rules.head()
+
+
+#Adım 3: arl_recommender fonksiyonunu kullanarak en son 2_0 hizmetini alan bir kullanıcıya hizmet önerisinde bulununuz.
+
+def arl_recommender(rules_df, product_id, rec_count=1):
+    sorted_rules = rules_df.sort_values("lift", ascending=False)
+    # kuralları lifte göre büyükten kücüğe sıralar. (en uyumlu ilk ürünü yakalayabilmek için)
+    # confidence'e göre de sıralanabilir insiyatife baglıdır.
+    recommendation_list = [] # tavsiye edilecek ürünler için bos bir liste olusturuyoruz.
+    # antecedents: X
+    #items denildigi için frozenset olarak getirir. index ve hizmeti birleştirir.
+    # i: index
+    # product: X yani öneri isteyen hizmet
+    for i, product in sorted_rules["antecedents"].items():
+        for j in list(product): # hizmetlerde(product) gez:
+            if j == product_id:# eger tavsiye istenen ürün yakalanırsa:
+                recommendation_list.append(list(sorted_rules.iloc[i]["consequents"]))
+                # index bilgisini i ile tutuyordun bu index bilgisindeki consequents(Y) değerini recommendation_list'e ekle.
+
+    # tavsiye listesinde tekrarlamayı önlemek için:
+    # mesela 2'li 3'lü kombinasyonlarda aynı ürün tekrar düşmüş olabilir listeye gibi;
+    # sözlük yapısının unique özelliginden yararlanıyoruz.
+    recommendation_list = list({item for item_list in recommendation_list for item in item_list})
+    return recommendation_list[:rec_count] # :rec_count istenen sayıya kadar tavsiye ürün getir.
+
+
+
+arl_recommender(rules,"2_0", 4)
