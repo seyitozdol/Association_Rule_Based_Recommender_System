@@ -33,9 +33,11 @@ import pandas as pd
 pd.set_option('display.max_columns', None)
 from mlxtend.frequent_patterns import apriori, association_rules
 
-
+# -----------------------------------------------------------------------------
 # Task 1: Data Prepration
-## Step 1: Load the armut_data.csv file.
+# -----------------------------------------------------------------------------
+
+# Loading the armut_data.csv file.
 
 df_ = pd.read_csv(r"Association_Rule_Based_Recommender_System\armut_data.csv")
 df = df_.copy()
@@ -44,7 +46,7 @@ df.head()
 df['Hizmet'] = df['ServiceId'].astype(str)+"_"+df['CategoryId'].astype(str)
 
 
-## Step 2: Each ServiceId represents a distinct service for every CategoryID.
+# Each ServiceId represents a distinct service for every CategoryID.
 # Create a new variable by combining ServiceID and CategoryID with "_" which will represent these services.
 
 
@@ -61,12 +63,11 @@ df['Hizmet'] = df['ServiceId'].astype(str)+"_"+df['CategoryId'].astype(str)
 
 
 # -----------------------------------------------------------------------------
-# Step 3: The dataset is comprised of the date and time the services were received.
+# The dataset is comprised of the date and time the services were received.
 # There's no specific cart definition (like an invoice). For implementing
 # Association Rule Learning, we need to define a 'cart'. Here, the cart is
 # defined as the services availed by each customer monthly.
 
-df.dtypes
 
 df['CreateDate'] = pd.to_datetime(df['CreateDate'])
 
@@ -75,41 +76,39 @@ df["New_Date"] = df["CreateDate"].dt.strftime("%Y-%m")
 df['SepetID'] = df['UserId'].astype(str)+"_"+df['New_Date']
 
 
-# ###############################################################################################################
+# -----------------------------------------------------------------------------
 # Task 2: Generate Association Rules and Provide Recommendations
-# ###############################################################################################################
+# -----------------------------------------------------------------------------
 
+# Convert the data into an invoice-product matrix
 invoice_product_df = df.groupby(['SepetID', 'Hizmet'])['Hizmet'].count().unstack().fillna(0).applymap(lambda x: 1 if x > 0 else 0)
 invoice_product_df.head()
 
+# Generating association rules.
 frequent_itemsets = apriori(invoice_product_df, min_support=0.01, use_colnames=True)
 rules = association_rules(frequent_itemsets, metric="support", min_threshold=0.01)
 rules.head()
 
-
-#Adım 3: arl_recommender fonksiyonunu kullanarak en son 2_0 hizmetini alan bir kullanıcıya hizmet önerisinde bulununuz.
-
+# Using the arl_recommender function to suggest a service for a user who last availed the service "2_0".
 def arl_recommender(rules_df, product_id, rec_count=1):
     sorted_rules = rules_df.sort_values("lift", ascending=False)
-    # kuralları lifte göre büyükten kücüğe sıralar. (en uyumlu ilk ürünü yakalayabilmek için)
-    # confidence'e göre de sıralanabilir insiyatife baglıdır.
-    recommendation_list = [] # tavsiye edilecek ürünler için bos bir liste olusturuyoruz.
+    # Sort the rules by lift in descending order. (To capture the most compatible product first)
+    # Sorting by confidence is also an option depending on discretion.
+    recommendation_list = [] # Create an empty list for recommended products.
     # antecedents: X
-    #items denildigi için frozenset olarak getirir. index ve hizmeti birleştirir.
+    # It fetches the items as frozensets. Combines index and product.
     # i: index
-    # product: X yani öneri isteyen hizmet
+    # product: X i.e., the service asking for recommendation
     for i, product in sorted_rules["antecedents"].items():
-        for j in list(product): # hizmetlerde(product) gez:
-            if j == product_id:# eger tavsiye istenen ürün yakalanırsa:
+        for j in list(product): # Loop through the services (product):
+            if j == product_id: # If the product asking for recommendation is found:
                 recommendation_list.append(list(sorted_rules.iloc[i]["consequents"]))
-                # index bilgisini i ile tutuyordun bu index bilgisindeki consequents(Y) değerini recommendation_list'e ekle.
+                # Store the consequents(Y) value of the current index to the recommendation list.
 
-    # tavsiye listesinde tekrarlamayı önlemek için:
-    # mesela 2'li 3'lü kombinasyonlarda aynı ürün tekrar düşmüş olabilir listeye gibi;
-    # sözlük yapısının unique özelliginden yararlanıyoruz.
+    # To prevent repetition in the recommendation list:
+    # For instance, the same product might reappear in multiple combinations (like pairs or triplets);
+    # Leveraging the unique nature of the dictionary structure.
     recommendation_list = list({item for item_list in recommendation_list for item in item_list})
-    return recommendation_list[:rec_count] # :rec_count istenen sayıya kadar tavsiye ürün getir.
-
-
+    return recommendation_list[:rec_count] # Return recommendations up to the desired number (rec_count).
 
 arl_recommender(rules,"2_0", 4)
