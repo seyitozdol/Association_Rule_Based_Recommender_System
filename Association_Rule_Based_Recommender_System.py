@@ -112,3 +112,5 @@ def arl_recommender(rules_df, product_id, rec_count=1):
     return recommendation_list[:rec_count] # Return recommendations up to the desired number (rec_count).
 
 arl_recommender(rules,"2_0", 4)
+
+# Out[]: ['22_0', '38_4', '2_0']
